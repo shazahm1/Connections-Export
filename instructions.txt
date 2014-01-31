@@ -1,0 +1,57 @@
+Instructions:
+
+Make the export table
+To make exports work, you just need a table called "wp_connections_export_settings", I attached export.sql to create the table with default settings, you can look it over, import it, and test it on some data to see it work out of the box.  By default it exports to CSV, I'll explain how to change it below.  Also, open export.php and adjust the database name/user/pass.
+
+
+What the table does
+Each row in the table relates to a field to be exported and is structured like this:
+
+[id] [field] [display_as] [type] [display] [fields] [table_name] [breakout_type] [field_order]
+
+[id] No usage, just key'd for compliance.
+
+[field] The source field name to be exported.  This is pulled directly from wp_connection if [type] contains 0. Otherwise, it's the name of the source field that will be pulled from the table wp_connections_[field], *unless* it's an exception (i.e. the dates field in wp_connection is called "dates", but the table it's related to is called "wp_connection_date"), to account for exceptions, if an entry exists in [table_name], it will pull data from wp_connections_[table_name] instead.
+
+[display_as] In case the field name is not desired, if something exists in [display_as] it will be used for column names (otherwise, [field] is used, and the first letter can be capitalized by changing the setting "ucfirst" to 1).
+
+[type] This handles break-out fields, i.e. cells that contain reference fields in another table like "address" is actually stored in the "wp_connections_address" table, and accross multiple fields, setting [type]=0 will export the actual field in wp_connections only, setting [type]=1 will export each field listed in [fields] from the "wp_connections_[field]" table that have matching IDs.  [type]=2,3 & 4 are all for the category field:
+
+2: List all categories associated with the contact in the same field.
+3: List all categories associated with the contact in separate fields.
+4: List all categories associated with the contact in separate fields, and list the primary category (categories with a parent of 0) on the left-most side.
+
+[display] decides how breakouts are shown.  I noticed you had all tables use a [type] field (i.e. addresses can have "work" "home" "other" addresses, etc.).
+
+"pre" will prefix the column name with this [type], and then the [field], so "work address"/"home address"/"other address".
+"post" will postfix the column name with this [type] after the [field], so "email home"/"email work"/"email other".
+"only" will only display this [type], so "facebook"/"twitter"/"Google+".
+"none" is for the category field, since it is generated, otherwise the column name will be blank.
+
+[fields] as mentioned above in [type], is a list of fields to pull as breakout cells from the related table.
+
+[table_name] is for exceptions to the expected wp_connections_[field] naming structure.  The only field that requires this is the dates field, which is stored in wp_connections_date instead of the expected wp_connections_dates.  This could easily be upgraded to pull the entire table name instead of postfixing "wp_connections_", which would allow breakouts to export data from other plugins.
+
+[breakout_types] is optional, and can be used to filter out breakout types you do not want to appear in the export, for example, if you only want work and home addresses, just put "work;home" in this field, and addresses of any other type will not be included.
+
+[field_order] is the order the field (column) should appear in the export.
+
+
+Settings not related to fields
+There is one additional row in the table, which contains "INTERNAL_SETTINGS" in the [field] column, this contains general export settings that are exploded using the "&" symbol into an array in the code.
+
+i.e.
+
+exportType=csv&order=organization&ucfirst=1
+
+Settings I implemented so far are:
+
+exportType which can be (currently) CSV, TSV, or HTML.
+ucfirst which can be 0 or 1.  If ucfirst is set to 1, the first letter of each column name will be upper case.
+order which decides which column the entire export is sorted by, it can contain any field.
+
+
+Some ideas
+To allow functionality for multiple exports to exist at the same (i.e. a "Mailing list" export, along with a "Emails Only" and "Clients on the East Coast" or something your customers can click on from a listing), you only need to edit the function openExport() which opens the wp_connections_settings table and sets everything up, and add a one-to-many id for multiple entries in the settings table.
+
+My client originally wanted to be able to generate a PDF of the export but canceled.  Which is why I made an option for HTML output.  If you are interested in this but have not created PDFs before, It's easy as pie; I used DOMpdf. It's free for use in commercial products and can generate PDF files on any server that supports a recent PHP interpreter, it takes plain HTML input and can use CSS formatting.
